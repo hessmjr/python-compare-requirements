@@ -34,10 +34,4 @@ Include a requirements.txt file: This file should list all the dependencies of y
 
 Provide clear usage instructions: You should provide clear instructions on how to use the tool, including any command line arguments or options that it accepts. This information can be included in a README.md file in the root of the project.
 
-Include a LICENSE file: This is important for open source projects, it will help people know the terms under which the project can be used and distributed.
-
-Provide a way for users to report bugs or request new features: Many open-source projects use a service like GitHub Issues to manage bug reports and feature requests.
-
-** Test the package before releasing it **: Test the package before releasing it, make sure everything runs smoothly and as expected
-
 Make the package available for distribution: Use tools like PyPI(Python Package Index) or other platforms like GitHub Releases to distribute your package

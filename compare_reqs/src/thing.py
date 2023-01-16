@@ -6,6 +6,10 @@ from pkg_resources import Requirement, working_set
 
 
 def compare_requirements(directories: List[str]) -> None:
+    # update to include flag to print all common packages (default: False)
+    # update to include flag to print alll unique packages (default: True)
+    # update to include flag to print all different versions (default: True)
+
     reqs = {}
     unique_reqs = {}
     different_versions = {}
@@ -23,5 +27,11 @@ def compare_requirements(directories: List[str]) -> None:
         different_versions[directories[i]] |= req_set_1 & req_set_2
 
     for directory in directories:
-        print(f"Packages unique to {directory}: {unique_reqs[directory]}")
+        print(f"Requirements for {directory}:")
+        print(f"Packages unique: {unique_reqs[directory]}")
         print(f"Packages with different versions: {different_versions[directory]}")
+
+
+# method to get requirements file (http or local)
+# method for parsing the requirements file
+# arg parsing logic

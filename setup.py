@@ -1,12 +1,25 @@
 from setuptools import setup, find_packages
 
+# Note: keep requirements here to ease distributions packaging
+tests_require = [
+    'pytest',
+    'pytest-mock',
+]
+dev_require = [
+    *tests_require,
+    'flake8',
+]
+install_requires = [
+    'pip',
+    'pipreqs==0.4.9'
+    'setuptools',
+]
+
 setup(
     name='my_project',
     version='0.1',
     packages=find_packages(),
-    install_requires=[
-        'pipreqs==0.4.9',
-    ],
+    install_requires=install_requires,
     entry_points={
         'console_scripts': [
             'my_project=my_project.__main__:main'
