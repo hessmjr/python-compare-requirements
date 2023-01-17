@@ -43,16 +43,15 @@ def establish_filepath(directory_path):
         raise ValueError("requirements.txt not found in directory")
 
 
-def parse_requirements_file(filepath):
+def parse_requirements_file(file_path):
     """
-    Parses the requirements file at the filepath given.
+    Parses the requirements file at the file_path given.
 
-    # param filepath: (str) path to directory containing requirements.txt
+    # param file_path: (str) path to directory containing requirements.txt
     # re
     """
-
-
-    reqs = parse_requirements("path/to/requirements.txt", session=False)
+    packages = {}
+    reqs = parse_requirements(file_path, session=False)
 
     for req in reqs:
         packages[req.name] = str(req.req)
