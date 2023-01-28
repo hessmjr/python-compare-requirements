@@ -11,7 +11,7 @@ dev_require = [
 ]
 install_requires = [
     'pip',
-    'pipreqs==0.4.9'
+    'pipreqs==0.4.10'
     'setuptools',
 ]
 
