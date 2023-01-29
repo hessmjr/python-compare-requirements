@@ -2,13 +2,12 @@
 import os
 import urllib.request
 from dataclasses import dataclass
-
+from art import tprint
 
 __version__ = '0.1.0'
 __date__ = '2023-01-16'
 __author__ = 'Mark Hess'
 __licence__ = 'BSD'
-
 
 REQUIREMENTS_TXT = 'requirements.txt'
 
@@ -21,7 +20,7 @@ class Package:
 
     def __str__(self):
         if self.version_spec and self.version:
-            return f'{self.name}{self.version_spec}{self.version}'
+            return f'{self.name} {self.version_spec} {self.version}'
         return self.name
 
     def __ne__(self, other):
@@ -111,11 +110,94 @@ def parse_requirements(filepath):
         if not deliminated:
             packages.add(Package(name=package_str))
 
-    return tuple(packages)
+    return packages
 
 
-def compare_reqs():
-    # print packages that are same
-    # print packages that are unique
-    # print packages that are different versions
-    pass
+def print_package(package, filepath):
+    """
+    Prints package information.
+
+    :param package: (Package) package to print
+    :param filepath: (str) filepath of package
+    """
+    print(f'{str(package).ljust(40)} - {filepath}')
+
+
+def print_table(diff_packages, unique_packages, same_packages, show_diff_versions, show_unique, show_same):
+    """
+    Prints table of packages comparison results.
+
+    :param diff_packages: (dict) packages with different versions
+    :param unique_packages: (dict) packages unique to directory
+    :param same_packages: (dict) packages with same versions
+    :param show_diff_versions: (bool) show packages with different versions
+    :param show_unique: (bool) show packages unique to directory
+    :param show_same: (bool) show packages with same versions
+    """
+    tprint("Package Summary")
+    print(f"Show Diff Package Versions: {show_diff_versions}")
+    print(f"Show Unique Packages: {show_unique}")
+    print(f"Show Shared Packages: {show_same}")
+    print()
+
+    if show_diff_versions:
+        print("Packages with different versions across directories:")
+        for filepath, package in diff_packages.items():
+            print_package(package, filepath)
+        print()
+    if show_unique:
+        print("Packages to specific directories:")
+        for filepath, package in unique_packages.items():
+            print_package(package, filepath)
+        print()
+    if show_same:
+        print("Packages with same versions across directories:")
+        for filepath, package in same_packages.items():
+            print_package(package, filepath)
+        print()
+
+
+def compare_reqs(*directories, show_diff_versions=True, show_same=False, show_unique=False):
+    """
+    Compare requirements.txt files in directories.  More than 1 required for comparison.
+
+    # param directories: (list) list of directories to compare
+    # param show_diff_versions: (bool) show packages with different versions
+    # param show_same: (bool) show packages with same versions
+    # param show_unique: (bool) show packages unique to directory
+    """
+    if not directories:
+        raise ValueError("No directories provided")
+    elif len(directories) == 1:
+        raise ValueError("Only one directory provided")
+
+    filepaths = [establish_filepath(directory) for directory in directories]
+    packages = {filepath: parse_requirements(filepath) for filepath in filepaths}
+
+    # we want to track packages unique to each directory, differing by versions
+    # in at least one directory, and packages that are the same across all
+    unique_packages, diff_packages, same_packages = {}, {}, {}
+
+    for idx, (filepath, package_set) in enumerate(packages.items()):
+        # no other packages to compare to at this point
+        if idx == len(packages) - 1:
+            break
+
+        for package in package_set:
+            found = False
+            # start from the next directory to compare to ensure comparisons only happen once
+            for idx2, (filepath2, package_set2) in enumerate(packages.items(), idx + 1):
+                for package2 in package_set2:
+                    if package == package2:
+                        found = True
+                        same_packages[filepath] = package # TODO fix this assignment
+                    elif package.name == package2.name:
+                        found = True
+                        diff_packages[filepath] = package
+                    if found:
+                        break
+
+            if not found:
+                unique_packages[filepath].append(package)
+
+    print_table(diff_packages, unique_packages, same_packages, show_diff_versions, show_unique, show_same)
