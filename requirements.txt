@@ -2,3 +2,4 @@ package1
 package2
 package3==0.0.1
 json>0.9.0
+pyyaml>3.10

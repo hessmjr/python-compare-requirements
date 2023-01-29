@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import urllib.request
+from collections import defaultdict
 from dataclasses import dataclass
 from art import tprint
 
@@ -10,6 +11,7 @@ __author__ = 'Mark Hess'
 __licence__ = 'BSD'
 
 REQUIREMENTS_TXT = 'requirements.txt'
+REQUIREMENTS = 'requirements'
 
 
 @dataclass(frozen=True)
@@ -28,22 +30,24 @@ class Package:
             return self.name != other.name \
                 or self.version != other.version \
                 or self.version_spec != other.version_spec
+        else:
+            raise TypeError(f'Cannot compare {type(self)} with {type(other)}')
 
     def __eq__(self, other):
         if isinstance(other, Package):
-            return self.name == other.name \
-                and self.version == other.version \
-                and self.version_spec == other.version_spec
+            return self.name == other.name and self.version == other.version and self.version_spec == other.version_spec
+        else:
+            raise TypeError(f'Cannot compare {type(self)} with {type(other)}')
 
 
-def establish_filepath(directory_path):
+def _establish_filepath(directory_path):
     """
     Get file path from local file system or create local file from URL.
 
     # param directory_path: (str) path to directory containing requirements.txt
     # return: (str) directory_path
     """
-    if not directory_path.endswith(REQUIREMENTS_TXT):
+    if REQUIREMENTS not in directory_path.lower():
         file_path = os.path.join(directory_path, REQUIREMENTS_TXT)
     else:
         file_path = directory_path
@@ -55,7 +59,7 @@ def establish_filepath(directory_path):
 
     # currently only supporting local files and web URLs
     elif not os.path.exists(file_path):
-        raise ValueError("Invalid directory path")
+        raise ValueError(f"Invalid directory path {file_path}")
 
     if os.path.isfile(file_path):
         return file_path
@@ -113,17 +117,8 @@ def parse_requirements(filepath):
     return packages
 
 
-def print_package(package, filepath):
-    """
-    Prints package information.
-
-    :param package: (Package) package to print
-    :param filepath: (str) filepath of package
-    """
-    print(f'{str(package).ljust(40)} - {filepath}')
-
-
-def print_table(diff_packages, unique_packages, same_packages, show_diff_versions, show_unique, show_same):
+def _print_table(diff_packages, unique_packages, same_packages, show_diff_versions,
+                 show_unique, show_same, remove_spaces):
     """
     Prints table of packages comparison results.
 
@@ -133,31 +128,47 @@ def print_table(diff_packages, unique_packages, same_packages, show_diff_version
     :param show_diff_versions: (bool) show packages with different versions
     :param show_unique: (bool) show packages unique to directory
     :param show_same: (bool) show packages with same versions
+    :param remove_spaces: (bool) remove spaces from package versions
     """
-    tprint("Package Summary")
-    print(f"Show Diff Package Versions: {show_diff_versions}")
-    print(f"Show Unique Packages: {show_unique}")
-    print(f"Show Shared Packages: {show_same}")
+    tprint("Package  Comparison", font="small")
+    print(f"Show Diff Package Versions:   {show_diff_versions}")
+    print(f"Show Unique Packages:         {show_unique}")
+    print(f"Show Shared Packages:         {show_same}")
     print()
 
     if show_diff_versions:
         print("Packages with different versions across directories:")
-        for filepath, package in diff_packages.items():
-            print_package(package, filepath)
+        sorted_packages = sorted(diff_packages.items(), key=lambda x: (x[0].name, x[0].version))
+        for package, filepaths in sorted_packages:
+            for filepath in filepaths:
+                package_str = str(package)
+                if remove_spaces:
+                    package_str = str(package).replace(" ", "")
+                print(f'{package_str.ljust(30)} - {filepath}')
         print()
+
     if show_unique:
-        print("Packages to specific directories:")
-        for filepath, package in unique_packages.items():
-            print_package(package, filepath)
+        print("Packages only found in a specific directory:")
+        sorted_packages = sorted(unique_packages.items(), key=lambda x: x[0].name)
+        for package, filepaths in sorted_packages:
+            package_str = str(package)
+            if remove_spaces:
+                package_str = package_str.replace(" ", "")
+            print(f'{package_str.ljust(30)} - {filepaths[0]}')
         print()
+
     if show_same:
         print("Packages with same versions across directories:")
-        for filepath, package in same_packages.items():
-            print_package(package, filepath)
+        sorted_packages = sorted(same_packages.items(), key=lambda x: x[0].name)
+        for package, filepaths in sorted_packages:
+            package_str = str(package)
+            if remove_spaces:
+                package_str = package_str.replace(" ", "")
+            print(f'{package_str}')
         print()
 
 
-def compare_reqs(*directories, show_diff_versions=True, show_same=False, show_unique=False):
+def compare_reqs(*directories, show_diff_versions=True, show_same=False, show_unique=False, remove_spaces=False):
     """
     Compare requirements.txt files in directories.  More than 1 required for comparison.
 
@@ -165,39 +176,53 @@ def compare_reqs(*directories, show_diff_versions=True, show_same=False, show_un
     # param show_diff_versions: (bool) show packages with different versions
     # param show_same: (bool) show packages with same versions
     # param show_unique: (bool) show packages unique to directory
+    # param remove_spaces: (bool) remove spaces from package versions
     """
     if not directories:
         raise ValueError("No directories provided")
     elif len(directories) == 1:
         raise ValueError("Only one directory provided")
 
-    filepaths = [establish_filepath(directory) for directory in directories]
+    filepaths = [_establish_filepath(directory) for directory in directories]
     packages = {filepath: parse_requirements(filepath) for filepath in filepaths}
 
     # we want to track packages unique to each directory, differing by versions
     # in at least one directory, and packages that are the same across all
-    unique_packages, diff_packages, same_packages = {}, {}, {}
+    unique_packages = defaultdict(list)
+    diff_packages = defaultdict(list)
+    same_packages = defaultdict(list)
 
-    for idx, (filepath, package_set) in enumerate(packages.items()):
-        # no other packages to compare to at this point
-        if idx == len(packages) - 1:
-            break
-
+    for filepath, package_set in packages.items():
         for package in package_set:
-            found = False
-            # start from the next directory to compare to ensure comparisons only happen once
-            for idx2, (filepath2, package_set2) in enumerate(packages.items(), idx + 1):
+            found, is_same_package = False, False
+
+            for filepath2, package_set2 in packages.items():
+                if filepath == filepath2:
+                    continue
+
+                # compare package to all packages in this directory by searching for
+                # exact match or different version, if exact match continue keep
+                # searching for different version but if different version then stop
+                # and add to diff_packages, if neither easily can assume unique
                 for package2 in package_set2:
                     if package == package2:
                         found = True
-                        same_packages[filepath] = package # TODO fix this assignment
+                        is_same_package = True
                     elif package.name == package2.name:
                         found = True
-                        diff_packages[filepath] = package
-                    if found:
+                        is_same_package = False
+                        diff_packages[package].append(filepath)
                         break
 
-            if not found:
-                unique_packages[filepath].append(package)
+                # if we found a match but it was a different version
+                # then no reason to keep looking
+                if found and not is_same_package:
+                    break
 
-    print_table(diff_packages, unique_packages, same_packages, show_diff_versions, show_unique, show_same)
+            if found and is_same_package:
+                same_packages[package].append(filepath)
+            elif not found:
+                unique_packages[package].append(filepath)
+
+    _print_table(diff_packages, unique_packages, same_packages, show_diff_versions,
+                 show_unique, show_same, remove_spaces)
