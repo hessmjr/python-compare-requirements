@@ -30,10 +30,26 @@ class TestEstablishFilepath(unittest.TestCase):
         self.assertEqual(filepath, 'build_requirements.txt')
         os.remove(filepath)
 
-# TODO
-# write a test for parse_requirements
 
-# write a test for compare_req function
+# TODO
+# write a test suite for parse_requirements
+# a test with requirements full of various package requirements
+class TestParseRequirements(unittest.TestCase):
+
+    def test_parse_requirements(self):
+        # create a temp file called requirements.txt
+        # write some requirements to it
+        # call parse_requirements on the temp file
+        # assert that the return value is a tuple of packages
+        # delete the temp file
+        tmp_file = 'tmp_requirements.txt'
+        with open(tmp_file, 'w') as f:
+            f.write('requests==2.22.0')
+        self.assertIsInstance(parse_requirements(tmp_file), tuple)
+        os.remove(tmp_file)
+
+
+# write a test suite for compare_req function with:
 # write a test with zero files
 # write a test with one file
 # write a test with two files, all 3 types of packages
