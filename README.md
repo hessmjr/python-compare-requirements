@@ -1,6 +1,11 @@
 # Python Requirements Diff
 Compares, or diffs, requirements files between multiple python requirements.
 
+TODO
+- finilze the readme
+- add branch protection
+- add action to run tests in github
+
 my_project/
 ├── src/
 │   ├── my_project/
