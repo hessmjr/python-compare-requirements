@@ -1,6 +1,0 @@
-package1==2
-package3==0.0.1
-package4==1.0.1
-json>1.0.0
-artwork
-tensorflow
