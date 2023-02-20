@@ -14,6 +14,7 @@ install_requires = [
     'pipreqs==0.4.10',
     'setuptools',
     'art',
+    'packaging',
 ]
 
 setup(
