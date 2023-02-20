@@ -3,7 +3,9 @@ import os
 import urllib.request
 from collections import defaultdict
 from dataclasses import dataclass
+
 from art import tprint
+from packaging import version
 
 __version__ = '0.1.0'
 __date__ = '2023-01-16'
@@ -12,6 +14,12 @@ __licence__ = 'BSD'
 
 REQUIREMENTS_TXT = 'requirements.txt'
 REQUIREMENTS = 'requirements'
+
+# For the dependency identifier specification, see
+# https://www.python.org/dev/peps/pep-0508/#complete-grammar
+# https://www.python.org/dev/peps/pep-0440/#version-specifiers
+# arbitrary equality operator is ignored at this time
+SPECIFIERS = ["<", ">", "=", "!", "~"]
 
 
 @dataclass(frozen=True)
@@ -25,19 +33,50 @@ class Package:
             return f'{self.name} {self.version_spec} {self.version}'
         return self.name
 
-    def __ne__(self, other):
-        if isinstance(other, Package):
-            return self.name != other.name \
-                or self.version != other.version \
-                or self.version_spec != other.version_spec
-        else:
+    def _can_compare(self, other):
+        if not isinstance(other, Package):
             raise TypeError(f'Cannot compare {type(self)} with {type(other)}')
 
+    def __ne__(self, other):
+        self._can_compare(other)
+        return self.name != other.name or \
+            self.version != other.version or \
+            self.version_spec != other.version_spec
+
     def __eq__(self, other):
-        if isinstance(other, Package):
-            return self.name == other.name and self.version == other.version and self.version_spec == other.version_spec
+        self._can_compare(other)
+        return self.name == other.name and \
+            self.version == other.version and \
+            self.version_spec == other.version_spec
+
+    def __gt__(self, other):
+        self._can_compare(other)
+
+        if self.name != other.name:
+            return self.name > other.name
+
+        if not all((self.version, other.version)):
+            if self.version is None and other.version is not None:
+                return True
         else:
-            raise TypeError(f'Cannot compare {type(self)} with {type(other)}')
+            self_version_parsed = version.parse(self.version)
+            other_version_parsed = version.parse(other.version)
+            if self_version_parsed != other_version_parsed:
+                return self_version_parsed > other_version_parsed
+
+            if self.version_spec != other.version_spec:
+                return self.version_spec > other.version_spec
+
+        return False
+
+    def __lt__(self, other):
+        return not self >= other
+
+    def __ge__(self, other):
+        return self > other or self == other
+
+    def __le__(self, other):
+        return self < other or self == other
 
 
 def _establish_filepath(directory_path):
@@ -83,20 +122,17 @@ def parse_requirements(filepath):
                 data.append(line.strip())
 
     packages = set([])
-    # For the dependency identifier specification, see
-    # https://www.python.org/dev/peps/pep-0508/#complete-grammar
-    delim = ["<", ">", "=", "!", "~"]
 
     for package_str in data:
         deliminated = False
 
         for idx, char in enumerate(package_str):
-            # only care about delimiters characters to split on
-            if char in delim:
+            # only care about specifier characters to split on
+            if char in SPECIFIERS:
                 deliminated = True
                 # in the case there is additional '=' in the specifier
                 # no long a 'char' but just semantics at this point
-                if package_str[idx + 1] in delim:
+                if package_str[idx + 1] in SPECIFIERS:
                     char = char + package_str[idx + 1]
 
                 module = package_str.split(char)
@@ -114,7 +150,64 @@ def parse_requirements(filepath):
         if not deliminated:
             packages.add(Package(name=package_str))
 
-    return packages
+    return tuple(packages)
+
+
+def _compare_reqs(*directories):
+    """
+    Compare requirements.txt files in directories.  More than 1 required for comparison.
+    Setup as internal function to allow for easier testing.
+
+    # param directories: (list) list of directories to compare
+    # return: (tuple) tuple of package results
+    """
+    if not directories:
+        raise ValueError("No directories provided")
+    elif len(directories) == 1:
+        raise ValueError("Only one directory provided")
+
+    filepaths = [_establish_filepath(directory) for directory in directories]
+    packages = {filepath: parse_requirements(filepath) for filepath in filepaths}
+
+    # we want to track packages unique to each directory, differing by versions
+    # in at least one directory, and packages that are the same across all
+    unique_packages = defaultdict(list)
+    diff_packages = defaultdict(list)
+    same_packages = defaultdict(list)
+
+    for filepath, package_set in packages.items():
+        for package in package_set:
+            found, is_same_package = False, False
+
+            for filepath2, package_set2 in packages.items():
+                if filepath == filepath2:
+                    continue
+
+                # compare package to all packages in this directory by searching for
+                # exact match or different version, if exact match continue keep
+                # searching for different version but if different version then stop
+                # and add to diff_packages, if neither easily can assume unique
+                for package2 in package_set2:
+                    if package == package2:
+                        found = True
+                        is_same_package = True
+                    elif package.name == package2.name:
+                        found = True
+                        is_same_package = False
+                        diff_packages[package].append(filepath)
+                        break
+
+                # if we found a match but it was a different version
+                # then no reason to keep looking
+                if found and not is_same_package:
+                    break
+
+            if found and is_same_package:
+                same_packages[package].append(filepath)
+            elif not found:
+                unique_packages[package].append(filepath)
+
+    return diff_packages, unique_packages, same_packages
 
 
 def _print_table(diff_packages, unique_packages, same_packages, show_diff_versions,
@@ -170,7 +263,7 @@ def _print_table(diff_packages, unique_packages, same_packages, show_diff_versio
 
 def compare_reqs(*directories, show_diff_versions=True, show_same=False, show_unique=False, remove_spaces=False):
     """
-    Compare requirements.txt files in directories.  More than 1 required for comparison.
+    Prints table of packages comparison results.
 
     # param directories: (list) list of directories to compare
     # param show_diff_versions: (bool) show packages with different versions
@@ -178,51 +271,16 @@ def compare_reqs(*directories, show_diff_versions=True, show_same=False, show_un
     # param show_unique: (bool) show packages unique to directory
     # param remove_spaces: (bool) remove spaces from package versions
     """
-    if not directories:
-        raise ValueError("No directories provided")
-    elif len(directories) == 1:
-        raise ValueError("Only one directory provided")
+    try:
+        diff_packages, unique_packages, same_packages = _compare_reqs(*directories)
 
-    filepaths = [_establish_filepath(directory) for directory in directories]
-    packages = {filepath: parse_requirements(filepath) for filepath in filepaths}
+        # split internal and public methods to allow for testing and utilize this method to print
+        _print_table(diff_packages, unique_packages, same_packages, show_diff_versions,
+                     show_unique, show_same, remove_spaces)
+    except ValueError as e:
+        raise e
+    except Exception as e:
+        print(e)
+        return False
 
-    # we want to track packages unique to each directory, differing by versions
-    # in at least one directory, and packages that are the same across all
-    unique_packages = defaultdict(list)
-    diff_packages = defaultdict(list)
-    same_packages = defaultdict(list)
-
-    for filepath, package_set in packages.items():
-        for package in package_set:
-            found, is_same_package = False, False
-
-            for filepath2, package_set2 in packages.items():
-                if filepath == filepath2:
-                    continue
-
-                # compare package to all packages in this directory by searching for
-                # exact match or different version, if exact match continue keep
-                # searching for different version but if different version then stop
-                # and add to diff_packages, if neither easily can assume unique
-                for package2 in package_set2:
-                    if package == package2:
-                        found = True
-                        is_same_package = True
-                    elif package.name == package2.name:
-                        found = True
-                        is_same_package = False
-                        diff_packages[package].append(filepath)
-                        break
-
-                # if we found a match but it was a different version
-                # then no reason to keep looking
-                if found and not is_same_package:
-                    break
-
-            if found and is_same_package:
-                same_packages[package].append(filepath)
-            elif not found:
-                unique_packages[package].append(filepath)
-
-    _print_table(diff_packages, unique_packages, same_packages, show_diff_versions,
-                 show_unique, show_same, remove_spaces)
+    return True
