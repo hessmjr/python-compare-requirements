@@ -1,42 +1,22 @@
-# Python Requirements Diff
-Compares, or diffs, requirements files between multiple python requirements.
+# Python Compare Requirements
+Python Compare Requirements is a Python package that compares two or more `requirements.txt` files and outputs the differences between them. It is a useful tool for developers and project managers who need to keep track of the dependencies of multiple projects.
 
-TODO
-- finilze the readme
-- add branch protection
-- add action to run tests in github
+## Usage
+Python Compare Requirements can be used as a Python console command or as a Python module.  Example:
 
-my_project/
-├── src/
-│   ├── my_project/
-│   │   ├── __init__.py
-│   │   ├── core.py
-│   │   ├── commands/
-│   │   │   ├── __init__.py
-│   │   │   ├── command1.py
-│   │   │   └── command2.py
-│   ├── __main__.py
-├── scripts/
-│   ├── my_project.sh
-├── tests/
-│   ├── __init__.py
-│   ├── test_core.py
-│   ├── test_commands/
-│   │   ├── __init__.py
-│   │   ├── test_command1.py
-│   │   └── test_command2.py
-├── requirements.txt
-├── README.md
-└── setup.py
+```python
+from compare_reqs import compare_reqs
 
-This structure separates the code for the command line interface and the core functionality, and also separates the tests, which is a good practice. It also provides a clear entry point for the script, which is the __main__.py file, and it also separates the different commands in different modules inside the commands package.
-It's worth mentioning that this is just one possible structure, and it may not be the best fit for every project, but it serves as a general guideline that can be adapted to suit the needs of your specific project.
-Please let me know if you have any questions, or if you need more help.
+requirements = 'requirements.txt'
+requirements2 = 'https://raw.githubusercontent.com/psf/requests/master/requirements.txt'
+compare_reqs(requirements, requirements2)
 
+requirements3 = 'path/to/requirements.txt'
+compare_reqs(requirements, requirements2, requirements3)
+```
 
-what else
-Include a requirements.txt file: This file should list all the dependencies of your project, so that other users can easily install them using pip install -r requirements.txt.
+## License
+Requirements Comparator is licensed under the BSD 3-Clause "New" or "Revised" License. See the LICENSE file for more details.
 
-Provide clear usage instructions: You should provide clear instructions on how to use the tool, including any command line arguments or options that it accepts. This information can be included in a README.md file in the root of the project.
-
-Make the package available for distribution: Use tools like PyPI(Python Package Index) or other platforms like GitHub Releases to distribute your package
+## Contributing
+Contributions are welcome! If you would like to contribute to Requirements Comparator, please create a pull request on GitHub.
