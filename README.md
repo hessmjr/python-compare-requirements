@@ -14,7 +14,7 @@ git clone git clone https://github.com/<username>/python-compare-requirements.gi
 4. Install the package:
 
 ```bash
-cd my-package
+cd python-compare-requirements
 pip install .
 # or
 pip install -e .
